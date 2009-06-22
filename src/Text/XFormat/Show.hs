@@ -9,14 +9,14 @@
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Text.XFormat.Show
--- Copyright   :  (c) Sean Leather
+-- Copyright   :  (c) 2009 Sean Leather
 -- License     :  BSD3
 --
 -- Maintainer  :  leather@cs.uu.nl
 -- Stability   :  experimental
 -- Portability :  non-portable
 --
--- This module defines a simple, extensible, type-indexed function for showing
+-- This module defines an extensible, type-indexed function for showing
 -- well-typed values with a format descriptor. This may be considered a Haskell
 -- variant of the C @printf@ function.
 --

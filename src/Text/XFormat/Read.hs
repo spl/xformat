@@ -8,14 +8,14 @@
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Text.XFormat.Read
--- Copyright   :  (c) Sean Leather
+-- Copyright   :  (c) 2009 Sean Leather
 -- License     :  BSD3
 --
 -- Maintainer  :  leather@cs.uu.nl
 -- Stability   :  experimental
 -- Portability :  non-portable
 --
--- This module defines a simple, extensible, type-indexed function for reading
+-- This module defines an extensible, type-indexed function for reading
 -- well-typed values from a string with a format descriptor. This may be
 -- considered a Haskell variant of the C @scanf@ function.
 --
