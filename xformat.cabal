@@ -30,7 +30,7 @@ description:
   Extension is simple: define a format descriptor and an instance of the
   appropriate class.
 
-category:               Text
+category:               Text, Generics
 copyright:              (c) 2009 Sean Leather
 license:                BSD3
 license-file:           LICENSE
