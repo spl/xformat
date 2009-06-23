@@ -2,8 +2,7 @@ name:                   xformat
 version:                0.1
 synopsis:
 
-  Extensible scanf- and printf-like functions for well-typed formatted reading
-  and showing
+  Extensible, type-safe formatting with scanf- and printf-like functions
 
 homepage:               http://github.com/spl/xformat/tree/master
 description:
