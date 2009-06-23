@@ -33,7 +33,7 @@ category:               Text, Generics
 copyright:              (c) 2009 Sean Leather
 license:                BSD3
 license-file:           LICENSE
-author:                 Sean Leather,
+author:                 Sean Leather
 maintainer:             leather@cs.uu.nl
 stability:              experimental
 build-type:             Custom
