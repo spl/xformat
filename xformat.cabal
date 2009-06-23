@@ -1,10 +1,16 @@
 name:                   xformat
 version:                0.1
-synopsis:               Extensible, typed, scanf- and printf-like functions for
-                        formatted reading and showing
+synopsis:
+
+  Extensible scanf- and printf-like functions for well-typed formatted reading
+  and showing
+
 homepage:               http://github.com/spl/xformat/tree/master
 description:
 
+  /Warning:/ This version of the package is very experimental and the interface
+  may change in later versions. I am seeking comments to improve it.
+  .
   This package is composed of two functions for formatted conversion between
   strings and typed values. Each is defined as a type-indexed function using a
   type class with multiple parameters and functional dependencies along with
@@ -42,8 +48,6 @@ Library
 
   exposed-modules:      Text.XFormat.Read
                         Text.XFormat.Show
-
-  other-modules:        Text.XFormat.Common
 
   build-depends:        base >= 3.0 && < 5.0
 

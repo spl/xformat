@@ -41,24 +41,39 @@ module Text.XFormat.Read (
 
   -- | These are used to indicate which values and types to read.
 
-  (:%:)(..),
-  (%),
+  -- ** Basic Format Descriptors
+
   CharF(..),
   IntF(..),
   IntegerF(..),
   FloatF(..),
   DoubleF(..),
   StringF(..),
+
+  -- ** Class-based Format Descriptors
+
   ReadF(..),
   NumF(..),
-  SpaceF(..),
+
+  -- ** Recursive Format Descriptors
+
+  (:%:)(..),
+  (%),
+
   WrapF(..),
+  MaybeF(..),
+  ChoiceF(..),
+  EitherF(..),
+  EitherLF(..),
+
+  -- ** Other Format Descriptors
+
+  SpaceF(..),
 
 ) where
 
 --------------------------------------------------------------------------------
 
-import Text.XFormat.Common
 import Text.ParserCombinators.ReadP
 import Data.Char (isSpace)
 
@@ -74,12 +89,16 @@ import Data.Char (isSpace)
 -- and expected input. The descriptor is often very simple. See the descriptors
 -- in this module for examples.
 --
--- Here is the instance for types that are instances of 'Read'.
+-- Here is the instance for types that are instances of 'Prelude.Read'.
 --
--- > data ReadF a = Read -- Format descriptor
--- >
--- > instance (Read a) => Format (ReadF a) a where
--- >   readpf Read = readS_to_P reads
+-- @
+--   data 'ReadF' a = 'Read' -- Format descriptor
+-- @
+--  
+-- @
+--   instance ('Prelude.Read' a) => Format ('ReadF' a) a where
+--     'readpf' 'Read' = 'readS_to_P' 'reads'
+-- @
 --
 -- Note that you will need some of the combinators (such as 'readS_to_P') in
 -- "Text.ParserCombinators.ReadP".
@@ -120,14 +139,12 @@ readf fmt s = headfirst (readsf fmt s)
 -- are compared with parsed input.
 --
 
--- | Parse a 'String' in the input and return it if it is equal to the enclosed
--- string.
+-- | Parse a 'String' and return it if it is equal to the enclosed value.
 
 instance Format String String where
   readpf = string
 
--- | Parse a 'Char' in the input and return the string if it is equal to the
--- enclosed character.
+-- | Parse a 'Char' and return it if it is equal to the enclosed value.
 
 instance Format Char Char where
   readpf = char
@@ -138,32 +155,44 @@ instance Format Char Char where
 -- Basic format descriptors
 --
 
--- | Parse a 'Char' in the input.
+-- | Parse a character.
+
+data CharF = Char
 
 instance Format CharF Char where
   readpf Char = get
 
--- | Parse a 'String' in the input. Reads until end of input.
+-- | Parse a string. Reads until the end of the input.
+
+data StringF = String
 
 instance Format StringF String where
   readpf String = munch (const True)
 
--- | Parse an 'Int' in the input.
+-- | Parse an 'Int'.
+
+data IntF = Int
 
 instance Format IntF Int where
   readpf Int = readS_to_P reads
 
--- | Parse an 'Integer' in the input.
+-- | Parse an 'Integer'.
+
+data IntegerF = Integer
 
 instance Format IntegerF Integer where
   readpf Integer = readS_to_P reads
 
--- | Parse a 'Float' in the input.
+-- | Parse a 'Float'.
+
+data FloatF = Float
 
 instance Format FloatF Float where
   readpf Float = readS_to_P reads
 
--- | Parse a 'Double' in the input.
+-- | Parse a 'Double'.
+
+data DoubleF = Double
 
 instance Format DoubleF Double where
   readpf Double = readS_to_P reads
@@ -174,12 +203,16 @@ instance Format DoubleF Double where
 -- Class format descriptors
 --
 
--- | Parse a @'Read' a@ value in the input.
+-- | Parse a value whose type is an instance of the class 'Prelude.Read'.
+
+data ReadF a = Read
 
 instance (Read a) => Format (ReadF a) a where
   readpf Read = readS_to_P reads
 
--- | Parse a @'Num' a@ value in the input.
+-- | Parse a value whose type is an instance of the class 'Prelude.Num'.
+
+data NumF a = Num
 
 instance (Read a, Num a) => Format (NumF a) a where
   readpf Num = readS_to_P reads
@@ -190,23 +223,18 @@ instance (Read a, Num a) => Format (NumF a) a where
 -- Other format descriptors
 --
 
--- | Parse a @'ReadP' a@ value in the input.
+-- | Parse a @'ReadP' a@ value.
 
 instance Format (ReadP a) a where
   readpf = id
 
--- | Parse all whitespace in the input.
+-- | Parse zero or more whitespace characters. Stop when a non-whitespace
+-- character is reached.
+
+data SpaceF = Space
 
 instance Format SpaceF String where
   readpf Space = munch isSpace
-
-instance (Format d1 a1, Format d2 a2)
-  => Format (WrapF d1 d2) (a1 :%: a2 :%: a1) where
-  readpf (Wrap d1l d2 d1r) = do
-    a1 <- readpf d1l
-    a2 <- readpf d2
-    a3 <- readpf d1r
-    return (a1 :%: a2 :%: a3)
 
 --------------------------------------------------------------------------------
 
@@ -214,8 +242,21 @@ instance (Format d1 a1, Format d2 a2)
 -- Recursive format descriptors
 --
 
--- | Right-associative product: First parse an @a1@ value and then an @a2@
--- value, returning the pair as @a1 :%: a2@.
+-- | Right-associative pair. First parse a @a@-type format and then a @b@-type
+-- format.
+
+data a :%: b = a :%: b
+  deriving (Eq, Show)
+
+infixr 8 :%:
+
+-- | Right-associative pair. This is a shorter, functional equivalent to the
+-- type @(:%:)@.
+
+(%) :: a -> b -> a :%: b
+(%) = (:%:)
+
+infixr 8 %
 
 instance (Format d1 a1, Format d2 a2) => Format (d1 :%: d2) (a1 :%: a2) where
   readpf (d1 :%: d2) = do
@@ -223,8 +264,48 @@ instance (Format d1 a1, Format d2 a2) => Format (d1 :%: d2) (a1 :%: a2) where
     a2 <- readpf d2
     return (a1 :%: a2)
 
-testTwo = readsf (Int % "abc") "5abcd" == [(5 % "abc", "d")]
-testThree = readsf (Char % 'a' % Read) "5a'b'" == [('5' % 'a' % 'b', "")]
+-- | Parse a format of one type wrapped by two other formats of a different
+-- type.
+
+data WrapF inner outer = Wrap outer inner outer
+
+instance (Format din ain, Format dout aout)
+  => Format (WrapF din dout) (aout :%: ain :%: aout) where
+  readpf (Wrap doutl din doutr) = do
+    aoutl <- readpf doutl
+    ain <- readpf din
+    aoutr <- readpf doutr
+    return (aoutl :%: ain :%: aoutr)
+
+-- | Parse an optional value.
+
+data MaybeF a = Maybe a
+
+instance (Format d a) => Format (MaybeF d) (Maybe a) where
+  readpf (Maybe d) = (readpf d >>= return . Just) <++ return Nothing
+
+-- | Parse one of the optional formats in a list.
+
+data ChoiceF a = Choice [a]
+
+instance (Format d a) => Format (ChoiceF d) a where
+  readpf (Choice ds) = choice (fmap readpf ds)
+
+-- | Parse one of two formats in a fully symmetric choice.
+
+data EitherF a b = Either a b
+
+instance (Format d1 a1, Format d2 a2) => Format (EitherF d1 d2) (Either a1 a2) where
+  readpf (Either d1 d2) =
+    (readpf d1 >>= return . Left) +++ (readpf d2 >>= return . Right)
+
+-- | Parse one of two formats, trying the left one first.
+
+data EitherLF a b = EitherL a b
+
+instance (Format d1 a1, Format d2 a2) => Format (EitherLF d1 d2) (Either a1 a2) where
+  readpf (EitherL d1 d2) =
+    (readpf d1 >>= return . Left) <++ (readpf d2 >>= return . Right)
 
 --------------------------------------------------------------------------------
 

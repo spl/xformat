@@ -29,9 +29,10 @@
 
 module Text.XFormat.Show (
 
-  -- * The Class
+  -- * The Classes
 
   Format(..),
+  Apply(..),
 
   -- * The Functions
 
@@ -42,30 +43,44 @@ module Text.XFormat.Show (
 
   -- | These are used to indicate which values and types to show.
 
-  (:%:)(..),
-  (%),
+  -- ** Basic Format Descriptors
+
   CharF(..),
   IntF(..),
   IntegerF(..),
   FloatF(..),
   DoubleF(..),
   StringF(..),
+
+  -- ** Class-based Format Descriptors
+
   ShowF(..),
   NumF(..),
-  SpacesF(..),
+
+  -- ** Recursive Format Descriptors
+
+  (:%:)(..),
+  (%),
+
   WrapF(..),
+  AlignF(..),
+  Dir(..),
 
-  -- * Utilities
+  -- ** Other Format Descriptors
 
-  Apply,
+  SpacesF(..),
+
+  -- * Utilities for Defining Instances
+
+  Id(..),
+  Arr(..),
+  (:.:)(..),
+  (<>),
 
 ) where
 
 --------------------------------------------------------------------------------
 
-import Text.XFormat.Common
-
---------------------------------------------------------------------------------
 
 -- | This class provides the signature for an extensible, type-indexed function
 -- that uses a format descriptor to print a variable number of well-typed
@@ -77,12 +92,16 @@ import Text.XFormat.Common
 -- and expected input. The descriptor is often very simple. See the descriptors
 -- in this module for examples.
 --
--- Here is the instance for types that are instances of 'Show'.
+-- Here is the instance for types that are instances of 'Prelude.Show'.
 --
--- > data ShowF a = Show -- Format descriptor
--- >
--- > instance (Show a) => Format (ShowF a) (Arr a) where
--- >   showsf' Show = Arr shows
+-- @
+--   data 'ShowF' a = 'Show' -- Format descriptor
+-- @
+--
+-- @
+--   instance ('Prelude.Show' a) => Format ('ShowF' a) ('Arr' a) where
+--     'showsf'' 'Show' = 'Arr' 'shows'
+-- @
 --
 -- The 'Arr' type is one of several 'Functor' wrappers necessary for defining
 -- these instances.
@@ -122,15 +141,15 @@ showf d = apply (fmap (\f -> f "") (showsf' d))
 -- | Wrapper for a format constant that does not take any arguments. Used in
 -- @instance 'Format' 'String' Id@ for example.
 
-newtype Id a = Id { unId :: a }
+newtype Id a = Id a
 
 instance Functor Id where
   fmap f (Id x) = Id (f x)
 
 -- | Wrapper for a format descriptor that takes an argument. Used in @instance
--- ('Show' a) => 'Format' ('ShowF' a) (Arr a)@ for example.
+-- ('Prelude.Show' a) => 'Format' ('ShowF' a) (Arr a)@ for example.
 
-newtype Arr a b = Arr { unArr :: a -> b }
+newtype Arr a b = Arr (a -> b)
 
 instance Functor (Arr a) where
   fmap f (Arr g) = Arr (f . g)
@@ -139,8 +158,8 @@ instance Functor (Arr a) where
 -- @instance ('Format' d1 f1, 'Format' d2 f2) => 'Format' (d1 :%: d2) (f1 :.:
 -- f2)@ for example.
 
--- newtype Comp f g a = Comp { unComp :: f (g a) }
-newtype (:.:) f g a = Comp { unComp :: f (g a) }
+newtype (:.:) f g a = Comp (f (g a))
+
 infixr 8 :.:
 
 instance (Functor f, Functor g) => Functor (f :.: g) where
@@ -161,11 +180,11 @@ infixr 8 <>
 class (Functor f) => Apply f a b | f a -> b where
   apply :: f a -> b
 
-instance Apply (Arr a) b (a -> b) where
-  apply (Arr f) = f
-
 instance Apply Id a a where
   apply (Id a) = a
+
+instance Apply (Arr a) b (a -> b) where
+  apply (Arr f) = f
 
 instance (Apply f b c, Apply g a b) => Apply (f :.: g) a c where
   apply (Comp fga) = apply (fmap apply fga)
@@ -184,14 +203,10 @@ instance (Apply f b c, Apply g a b) => Apply (f :.: g) a c where
 instance Format String Id where
   showsf' s = Id (showString s)
 
-testString = unId (showsf' "abc")
-
 -- | Print the enclosed 'Char'.
 
 instance Format Char Id where
   showsf' c = Id (showChar c)
-
-testChar = showf 'c'
 
 --------------------------------------------------------------------------------
 
@@ -199,47 +214,47 @@ testChar = showf 'c'
 -- Basic format descriptors
 --
 
--- | Print a 'Char' argument.
+-- | Print a character argument.
+
+data CharF = Char
 
 instance Format CharF (Arr Char) where
   showsf' Char = Arr showChar
 
-testCharF = showf Char 'c'
+-- | Print a string argument.
 
--- | Print a 'String' argument.
+data StringF = String
 
 instance Format StringF (Arr String) where
   showsf' String = Arr showString
 
-testStringF = showf String "abc"
-
 -- | Print an 'Int' argument.
+
+data IntF = Int
 
 instance Format IntF (Arr Int) where
   showsf' Int = Arr shows
 
-testIntF = showf Int 5
-
 -- | Print an 'Integer' argument.
+
+data IntegerF = Integer
 
 instance Format IntegerF (Arr Integer) where
   showsf' Integer = Arr shows
 
-testIntegerF = showf Integer 5
-
 -- | Print a 'Float' argument.
+
+data FloatF = Float
 
 instance Format FloatF (Arr Float) where
   showsf' Float = Arr shows
 
-testFloatF = showf Float 5
-
 -- | Print a 'Double' argument.
+
+data DoubleF = Double
 
 instance Format DoubleF (Arr Double) where
   showsf' Double = Arr shows
-
-testDoubleF = showf Double 5
 
 --------------------------------------------------------------------------------
 
@@ -247,19 +262,19 @@ testDoubleF = showf Double 5
 -- Class format descriptors
 --
 
--- | Print a @'Show' a@ argument.
+-- | Print an argument whose type is an instance of the class 'Prelude.Show'.
+
+data ShowF a = Show
 
 instance (Show a) => Format (ShowF a) (Arr a) where
   showsf' Show = Arr shows
 
-testShowF = showf Show 99.9
+-- | Print an argument whose type is an instance of the class 'Prelude.Num'.
 
--- | Print a @'Num' a@ argument.
+data NumF a = Num
 
 instance (Num a) => Format (NumF a) (Arr a) where
   showsf' Num = Arr shows
-
-testNumF = showf Num 7734
 
 --------------------------------------------------------------------------------
 
@@ -267,12 +282,12 @@ testNumF = showf Num 7734
 -- Other format descriptors
 --
 
--- | Print  argument.
+-- | Print a specified number of spaces.
+
+data SpacesF = Spaces Int
 
 instance Format SpacesF Id where
   showsf' (Spaces n) = Id (showString (replicate n ' '))
-
-testSpacesF = showf (Spaces 15)
 
 --------------------------------------------------------------------------------
 
@@ -280,19 +295,53 @@ testSpacesF = showf (Spaces 15)
 -- Recursive format descriptors
 --
 
--- | Right-associative product: First print an @a1@ argument and then an @a2@
--- argument.
+-- | Right-associative pair. First print a @a@-type format and then a @b@-type
+-- format.
+
+data a :%: b = a :%: b
+  deriving (Eq, Show)
+
+infixr 8 :%:
+
+-- | Right-associative pair. This is a shorter, functional equivalent to the
+-- type @(:%:)@.
+
+(%) :: a -> b -> a :%: b
+(%) = (:%:)
+
+infixr 8 %
 
 instance (Format d1 f1, Format d2 f2) => Format (d1 :%: d2) (f1 :.: f2) where
   showsf' (d1 :%: d2) = showsf' d1 <> showsf' d2
 
-testComp1 = showf (Int % String) 5 "abc"
-testComp2 = showf (Int % "cba") 5
-testComp3 = showf (Show % Int % String) 4.05 20 "abc"
+-- | Print a format of one type wrapped by two other formats of a different
+-- type.
 
-instance (Format d1 f1, Format d2 f2)
-  => Format (WrapF d1 d2) (f1 :.: f2 :.: f1) where
-  showsf' (Wrap d1l d2 d1r) = showsf' d1l <> showsf' d2 <> showsf' d1r
+data WrapF inner outer = Wrap outer inner outer
+
+instance (Format din fin, Format dout fout)
+  => Format (WrapF din dout) (fout :.: fin :.: fout) where
+  showsf' (Wrap doutl din doutr) = showsf' doutl <> showsf' din <> showsf' doutr
+
+-- | Print a format aligned left or right within a column of the given width.
+
+data AlignF a = Align Dir Int a
+
+-- | Direction (left or right) used for 'AlignF'.
+
+data Dir = L | R
+
+align :: Dir -> Int -> ShowS -> ShowS
+align dir wid f =
+  case dir of
+    L -> f . g
+    R -> g . f
+  where
+    len = length (f "")
+    g = if len < wid then showString (replicate (wid - len) ' ') else id
+
+instance (Format d f) => Format (AlignF d) f where
+  showsf' (Align dir wid d) = fmap (align dir wid) (showsf' d)
 
 --------------------------------------------------------------------------------
 
@@ -309,8 +358,6 @@ instance
   showsf' (d1, d2) =
     showsf' d1 <> showsf' d2
 
-testPair = showf (Int, String) 5 "abc"
-
 instance
   (Format d1 f1, Format d2 f2, Format d3 f3)
   => Format
@@ -319,8 +366,6 @@ instance
   where
   showsf' (d1, d2, d3) =
     showsf' d1 <> showsf' d2 <> showsf' d3
-
-testTriple = showf (Show, String, Char) 5 "abc" 'd'
 
 instance
   (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4)
