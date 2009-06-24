@@ -4,7 +4,7 @@ synopsis:
 
   Extensible, type-safe formatting with scanf- and printf-like functions
 
-homepage:               http://github.com/spl/xformat/tree/master
+homepage:               http://github.com/spl/xformat
 description:
 
   /Warning:/ This version of the package is very experimental and the interface
