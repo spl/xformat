@@ -58,6 +58,9 @@ testRecursive = and
   , showf (Align L 5 String) "abc" == "abc  "
   , showf (Align R 5 Int) 999 == "  999"
   , showf (Align L 5 "1234567") == "1234567"
+  , showf (AlignChop L 5 "123") == "123  "
+  , showf (AlignChop L 3 "12345") == "123"
+  , showf (AlignChop R 3 "12345") == "345"
   ]
 
 testTuples :: Bool

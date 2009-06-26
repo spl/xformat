@@ -64,6 +64,7 @@ module Text.XFormat.Show (
 
   WrapF(..),
   AlignF(..),
+  AlignChopF(..),
   Dir(..),
 
   -- ** Other Format Descriptors
@@ -327,21 +328,31 @@ instance (Format din fin, Format dout fout)
 
 data AlignF a = Align Dir Int a
 
--- | Direction (left or right) used for 'AlignF'.
+-- | Same as 'AlignF' but chop off the output if it extends past the column
+-- width.
+
+data AlignChopF a = AlignChop Dir Int a
+
+-- | Direction (left or right) used for 'AlignF' and 'AlignChopF'.
 
 data Dir = L | R
 
-align :: Dir -> Int -> ShowS -> ShowS
-align dir wid f =
+align :: Bool -> Dir -> Int -> ShowS -> ShowS
+align doChop dir wid input =
   case dir of
-    L -> f . g
-    R -> g . f
+    L -> chop (take wid)         . input . addSpaces
+    R -> chop (drop (len - wid)) . addSpaces . input
   where
-    len = length (f "")
-    g = if len < wid then showString (replicate (wid - len) ' ') else id
+    len = length (input "")
+    spaces = replicate (wid - len) ' '
+    chop act = if doChop && len > wid then act else id
+    addSpaces = if len < wid then showString spaces else id
 
 instance (Format d f) => Format (AlignF d) f where
-  showsf' (Align dir wid d) = fmap (align dir wid) (showsf' d)
+  showsf' (Align dir wid d) = fmap (align False dir wid) (showsf' d)
+
+instance (Format d f) => Format (AlignChopF d) f where
+  showsf' (AlignChop dir wid d) = fmap (align True dir wid) (showsf' d)
 
 --------------------------------------------------------------------------------
 
