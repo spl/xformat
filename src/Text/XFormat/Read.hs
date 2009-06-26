@@ -74,6 +74,7 @@ module Text.XFormat.Read (
 
 --------------------------------------------------------------------------------
 
+import Control.Applicative ((<$>))
 import Text.ParserCombinators.ReadP
 import Data.Char (isSpace)
 
@@ -289,7 +290,7 @@ instance (Format d a) => Format (MaybeF d) (Maybe a) where
 data ChoiceF a = Choice [a]
 
 instance (Format d a) => Format (ChoiceF d) a where
-  readpf (Choice ds) = choice (fmap readpf ds)
+  readpf (Choice ds) = choice (readpf <$> ds)
 
 -- | Parse one of two formats in a fully symmetric choice.
 
@@ -297,7 +298,7 @@ data EitherF a b = Either a b
 
 instance (Format d1 a1, Format d2 a2) => Format (EitherF d1 d2) (Either a1 a2) where
   readpf (Either d1 d2) =
-    (readpf d1 >>= return . Left) +++ (readpf d2 >>= return . Right)
+    (Left <$> readpf d1) +++ (Right <$> readpf d2)
 
 -- | Parse one of two formats, trying the left one first.
 
@@ -305,7 +306,7 @@ data EitherLF a b = EitherL a b
 
 instance (Format d1 a1, Format d2 a2) => Format (EitherLF d1 d2) (Either a1 a2) where
   readpf (EitherL d1 d2) =
-    (readpf d1 >>= return . Left) <++ (readpf d2 >>= return . Right)
+    (Left <$> readpf d1) <++ (Right <$> readpf d2)
 
 --------------------------------------------------------------------------------
 
