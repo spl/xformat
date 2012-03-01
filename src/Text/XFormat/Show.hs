@@ -274,7 +274,7 @@ instance (Show a) => Format (ShowF a) (Arr a) where
 
 data NumF a = Num
 
-instance (Num a) => Format (NumF a) (Arr a) where
+instance (Num a, Show a) => Format (NumF a) (Arr a) where
   showsf' Num = Arr shows
 
 --------------------------------------------------------------------------------
