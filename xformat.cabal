@@ -1,5 +1,5 @@
 name:                   xformat
-version:                0.1
+version:                0.1.1
 synopsis:
 
   Extensible, type-safe formatting with scanf- and printf-like functions
@@ -38,7 +38,7 @@ maintainer:             leather@cs.uu.nl
 stability:              experimental
 build-type:             Custom
 cabal-version:          >= 1.2.1
-tested-with:            GHC == 6.8.3, GHC == 6.10.1
+tested-with:            GHC == 6.8.3, GHC == 6.10.1, GHC == 7.4.1
 
 --------------------------------------------------------------------------------
 
