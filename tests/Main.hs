@@ -2,7 +2,7 @@
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Main
--- Copyright   :  (c) 2009 Sean Leather
+-- Copyright   :  (c) 2009-2012 Sean Leather
 -- License     :  BSD3
 --
 -- Maintainer  :  leather@cs.uu.nl
@@ -11,6 +11,8 @@
 --------------------------------------------------------------------------------
 
 module Main where
+
+import System.Exit (exitFailure, exitSuccess)
 
 import qualified Read (test)
 import qualified Show (test)
@@ -22,7 +24,5 @@ test = and
   ]
 
 main :: IO ()
-main =
-  do putStrLn "Running tests for Text.XFormat.* ..."
-     putStrLn $ "Result: " ++ if test then "Passed. :)" else "FAILED!!! :("
+main = if test then exitSuccess else exitFailure
 
