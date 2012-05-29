@@ -1,6 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -9,7 +8,7 @@
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Text.XFormat.Show
--- Copyright   :  (c) 2009 Sean Leather
+-- Copyright   :  (c) 2009-2012 Sean Leather
 -- License     :  BSD3
 --
 -- Maintainer  :  leather@cs.uu.nl
@@ -85,7 +84,7 @@ module Text.XFormat.Show (
 
 -- | This class provides the signature for an extensible, type-indexed function
 -- that uses a format descriptor to print a variable number of well-typed
--- arguments to a string. The type variable @d@ is the format descriptor, and
+-- arguments to a string. The type variable @f@ is the format descriptor, and
 -- the 'Functor' variable @f@ determines the type of the value to be shown.
 --
 -- An instance of @Format@ adds a (type) case to the function. Before defining
@@ -107,31 +106,31 @@ module Text.XFormat.Show (
 -- The 'Arr' type is one of several 'Functor' wrappers necessary for defining
 -- these instances.
 
-class (Functor f) => Format d f | d -> f where
+class Functor (S f) => Format f where
+  type S f :: * -> *
 
-  -- | Given a format descriptor @d@, return a 'Functor' wrapping a @'String' ->
-  -- 'String'@ type. This function may not be very useful outside of defining an
-  -- instance for 'Format'. Instead, consider using 'showsf' or 'showf'.
+  -- | Given a format descriptor @f@, the result type @S f@ is a functor whose
+  -- type parameter is @'String' -> 'String'@.
 
-  showsf' :: d -> f ShowS
+  showsf' :: f -> S f ShowS
 
 --------------------------------------------------------------------------------
 
--- | Given a format descriptor @d@, a variable number of arguments represented
--- by @a@ (and determined by @d@), and a 'String', return a 'String' result.
+-- | Given a format descriptor @fmt@, a variable number of arguments represented
+-- by @a@ (and determined by @fmt@), and a 'String', return a 'String' result.
 -- This function removes the 'Functor' wrappers from the output of 'showsf'' to
 -- get the variable number of arguments.
 
-showsf :: (Format d f, Apply f ShowS a) => d -> a
-showsf d = apply (showsf' d)
+showsf :: (Format f, Apply (S f)) => f -> A (S f) ShowS
+showsf fmt = apply (showsf' fmt)
 
--- | Given a format descriptor @d@ and a variable number of arguments
--- represented by @a@ (and determined by @d@), return a 'String' result. This
+-- | Given a format descriptor @fmt@ and a variable number of arguments
+-- represented by @a@ (and determined by @fmt@), return a 'String' result. This
 -- function is the same as 'showsf' but has already been applied to a 'String'
 -- input.
 
-showf :: (Format d f, Apply f String a) => d -> a
-showf d = apply (fmap (\f -> f "") (showsf' d))
+showf :: (Format f, Apply (S f)) => f -> A (S f) String
+showf fmt = apply (fmap (\f -> f "") (showsf' fmt))
 
 --------------------------------------------------------------------------------
 
@@ -178,17 +177,15 @@ infixr 8 <>
 -- Functor wrapper removal
 --
 
-class (Functor f) => Apply f a b | f a -> b where
-  apply :: f a -> b
+type family A (f :: * -> *) a :: *
+type instance A Id        a  = a
+type instance A (Arr a)   b  = a -> b
+type instance A (f :.: g) a  = A f (A g a)
 
-instance Apply Id a a where
-  apply (Id a) = a
-
-instance Apply (Arr a) b (a -> b) where
-  apply (Arr f) = f
-
-instance (Apply f b c, Apply g a b) => Apply (f :.: g) a c where
-  apply (Comp fga) = apply (fmap apply fga)
+class Functor f => Apply f                     where apply :: f a -> A f a
+instance Apply Id                              where apply (Id a)     = a
+instance Apply (Arr a)                         where apply (Arr f)    = f
+instance (Apply f, Apply g) => Apply (f :.: g) where apply (Comp fg)  = apply (fmap apply fg)
 
 --------------------------------------------------------------------------------
 
@@ -201,12 +198,14 @@ instance (Apply f b c, Apply g a b) => Apply (f :.: g) a c where
 
 -- | Print the enclosed 'String'.
 
-instance Format String Id where
+instance Format String where
+  type S String = Id
   showsf' s = Id (showString s)
 
 -- | Print the enclosed 'Char'.
 
-instance Format Char Id where
+instance Format Char where
+  type S Char = Id
   showsf' c = Id (showChar c)
 
 --------------------------------------------------------------------------------
@@ -219,42 +218,48 @@ instance Format Char Id where
 
 data CharF = Char
 
-instance Format CharF (Arr Char) where
+instance Format CharF where
+  type S CharF = Arr Char
   showsf' Char = Arr showChar
 
 -- | Print a string argument.
 
 data StringF = String
 
-instance Format StringF (Arr String) where
+instance Format StringF where
+  type S StringF = Arr String
   showsf' String = Arr showString
 
 -- | Print an 'Int' argument.
 
 data IntF = Int
 
-instance Format IntF (Arr Int) where
+instance Format IntF where
+  type S IntF = Arr Int
   showsf' Int = Arr shows
 
 -- | Print an 'Integer' argument.
 
 data IntegerF = Integer
 
-instance Format IntegerF (Arr Integer) where
+instance Format IntegerF where
+  type S IntegerF = Arr Integer
   showsf' Integer = Arr shows
 
 -- | Print a 'Float' argument.
 
 data FloatF = Float
 
-instance Format FloatF (Arr Float) where
+instance Format FloatF where
+  type S FloatF = Arr Float
   showsf' Float = Arr shows
 
 -- | Print a 'Double' argument.
 
 data DoubleF = Double
 
-instance Format DoubleF (Arr Double) where
+instance Format DoubleF where
+  type S DoubleF = Arr Double
   showsf' Double = Arr shows
 
 --------------------------------------------------------------------------------
@@ -267,14 +272,16 @@ instance Format DoubleF (Arr Double) where
 
 data ShowF a = Show
 
-instance (Show a) => Format (ShowF a) (Arr a) where
+instance (Show a) => Format (ShowF a) where
+  type S (ShowF a) = Arr a
   showsf' Show = Arr shows
 
 -- | Print an argument whose type is an instance of the class 'Prelude.Num'.
 
 data NumF a = Num
 
-instance (Num a, Show a) => Format (NumF a) (Arr a) where
+instance (Num a, Show a) => Format (NumF a) where
+  type S (NumF a) = Arr a
   showsf' Num = Arr shows
 
 --------------------------------------------------------------------------------
@@ -287,7 +294,8 @@ instance (Num a, Show a) => Format (NumF a) (Arr a) where
 
 data SpacesF = Spaces Int
 
-instance Format SpacesF Id where
+instance Format SpacesF where
+  type S SpacesF = Id
   showsf' (Spaces n) = Id (showString (replicate n ' '))
 
 --------------------------------------------------------------------------------
@@ -312,16 +320,17 @@ infixr 8 :%:
 
 infixr 8 %
 
-instance (Format d1 f1, Format d2 f2) => Format (d1 :%: d2) (f1 :.: f2) where
-  showsf' (d1 :%: d2) = showsf' d1 <> showsf' d2
+instance (Format f, Format g) => Format (f :%: g) where
+  type S (f :%: g) = S f :.: S g
+  showsf' (f :%: g) = showsf' f <> showsf' g
 
 -- | Print a format of one type wrapped by two other formats of a different
 -- type.
 
 data WrapF inner outer = Wrap outer inner outer
 
-instance (Format din fin, Format dout fout)
-  => Format (WrapF din dout) (fout :.: fin :.: fout) where
+instance (Format din, Format dout) => Format (WrapF din dout) where
+  type S (WrapF din dout) = S dout :.: S din :.: S dout
   showsf' (Wrap doutl din doutr) = showsf' doutl <> showsf' din <> showsf' doutr
 
 -- | Print a format aligned left or right within a column of the given width.
@@ -348,176 +357,203 @@ align doChop dir wid input =
     chop act = if doChop && len > wid then act else id
     addSpaces = if len < wid then showString spaces else id
 
-instance (Format d f) => Format (AlignF d) f where
-  showsf' (Align dir wid d) = fmap (align False dir wid) (showsf' d)
+instance Format f => Format (AlignF f) where
+  type S (AlignF f) = S f
+  showsf' (Align dir wid f) = fmap (align False dir wid) (showsf' f)
 
-instance (Format d f) => Format (AlignChopF d) f where
-  showsf' (AlignChop dir wid d) = fmap (align True dir wid) (showsf' d)
+instance Format f => Format (AlignChopF f) where
+  type S (AlignChopF f) = S f
+  showsf' (AlignChop dir wid f) = fmap (align True dir wid) (showsf' f)
 
 --------------------------------------------------------------------------------
 
 --
--- Tuple format descriptors: These all follow the same pattern.
+-- Tuple format descriptors
 --
 
 instance
-  (Format d1 f1, Format d2 f2)
+  (Format f1, Format f2)
   => Format
-  (d1, d2)
-  (f1 :.: f2)
+  (f1, f2)
   where
-  showsf' (d1, d2) =
-    showsf' d1 <> showsf' d2
+  type S (f1, f2) =
+    S f1 :.: S f2
+  showsf' (f1, f2) =
+    showsf' f1 <> showsf' f2
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3)
+  (Format f1, Format f2, Format f3)
   => Format
-  (d1, d2, d3)
-  (f1 :.: f2 :.: f3)
+  (f1, f2, f3)
   where
-  showsf' (d1, d2, d3) =
-    showsf' d1 <> showsf' d2 <> showsf' d3
+  type S (f1, f2, f3) =
+    S f1 :.: S f2 :.: S f3
+  showsf' (f1, f2, f3) =
+    showsf' f1 <> showsf' f2 <> showsf' f3
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4)
+  (Format f1, Format f2, Format f3, Format f4)
   => Format
-  (d1, d2, d3, d4)
-  (f1 :.: f2 :.: f3 :.: f4)
+  (f1, f2, f3, f4)
   where
-  showsf' (d1, d2, d3, d4) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4
+  type S (f1, f2, f3, f4) =
+    S f1 :.: S f2 :.: S f3 :.: S f4
+  showsf' (f1, f2, f3, f4) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5)
+  (Format f1, Format f2, Format f3, Format f4, Format f5)
   => Format
-  (d1, d2, d3, d4, d5)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5)
+  (f1, f2, f3, f4, f5)
   where
-  showsf' (d1, d2, d3, d4, d5) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5
+  type S (f1, f2, f3, f4, f5) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5
+  showsf' (f1, f2, f3, f4, f5) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6)
   => Format
-  (d1, d2, d3, d4, d5, d6)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6)
+  (f1, f2, f3, f4, f5, f6)
   where
-  showsf' (d1, d2, d3, d4, d5, d6) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6
+  type S (f1, f2, f3, f4, f5, f6) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6
+  showsf' (f1, f2, f3, f4, f5, f6) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7)
+  (f1, f2, f3, f4, f5, f6, f7)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7
+  type S (f1, f2, f3, f4, f5, f6, f7) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7
+  showsf' (f1, f2, f3, f4, f5, f6, f7) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8)
+  (f1, f2, f3, f4, f5, f6, f7, f8)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8
+  type S (f1, f2, f3, f4, f5, f6, f7, f8) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10,
-   Format d11 f11)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10 :.: f11)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10 <>
-    showsf' d11
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
+    S f11
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
+    showsf' f11
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10,
-   Format d11 f11, Format d12 f12)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10 :.:
-   f11 :.: f12)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10 <>
-    showsf' d11 <> showsf' d12
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
+    S f11 :.: S f12
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
+    showsf' f11 <> showsf' f12
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10,
-   Format d11 f11, Format d12 f12, Format d13 f13)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10 :.:
-   f11 :.: f12 :.: f13)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10 <>
-    showsf' d11 <> showsf' d12 <> showsf' d13
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
+    S f11 :.: S f12 :.: S f13
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
+    showsf' f11 <> showsf' f12 <> showsf' f13
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10,
-   Format d11 f11, Format d12 f12, Format d13 f13, Format d14 f14)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13, Format f14)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10 :.:
-   f11 :.: f12 :.: f13 :.: f14)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10 <>
-    showsf' d11 <> showsf' d12 <> showsf' d13 <> showsf' d14
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
+    S f11 :.: S f12 :.: S f13 :.: S f14
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
+    showsf' f11 <> showsf' f12 <> showsf' f13 <> showsf' f14
 
 instance
-  (Format d1 f1, Format d2 f2, Format d3 f3, Format d4 f4, Format d5 f5,
-   Format d6 f6, Format d7 f7, Format d8 f8, Format d9 f9, Format d10 f10,
-   Format d11 f11, Format d12 f12, Format d13 f13, Format d14 f14,
-   Format d15 f15)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13, Format f14,
+   Format f15)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15)
-  (f1 :.: f2 :.: f3 :.: f4 :.: f5 :.: f6 :.: f7 :.: f8 :.: f9 :.: f10 :.:
-   f11 :.: f12 :.: f13 :.: f14 :.: f15)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15)
   where
-  showsf' (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15) =
-    showsf' d1 <> showsf' d2 <> showsf' d3 <> showsf' d4 <> showsf' d5 <>
-    showsf' d6 <> showsf' d7 <> showsf' d8 <> showsf' d9 <> showsf' d10 <>
-    showsf' d11 <> showsf' d12 <> showsf' d13 <> showsf' d14 <> showsf' d15
+  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
+    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
+    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
+    S f11 :.: S f12 :.: S f13 :.: S f14 :.: S f15
+  showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
+    showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
+    showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
+    showsf' f11 <> showsf' f12 <> showsf' f13 <> showsf' f14 <> showsf' f15
 
