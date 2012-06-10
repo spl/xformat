@@ -54,6 +54,8 @@ testRecursive = and
   , readf (braces Int) "{1}" == Just 1
   , readf (Maybe Int) "1" == Just (Just 1)
   , readf (Maybe Int) "a" == Just Nothing
+  , readf (Opt 5 Int) "a" == Just 5
+  , readf (Opt 5 Int) "2" == Just 2
   , readf (Choice ['(',')']) ")" == Just ')'
   , readf (Either Char Int) "1" == Just (Left '1')
   , readf (EitherL Int Char) "1" == Just (Left 1)

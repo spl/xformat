@@ -67,6 +67,7 @@ module Text.XFormat.Read (
   -- ** Other Format Descriptors
 
   SpaceF(..),
+  OptF(..),
   BetweenF(..),
   quotes,
   parens,
@@ -298,6 +299,14 @@ data MaybeF a = Maybe a
 instance Format f => Format (MaybeF f) where
   type R (MaybeF f) = Maybe (R f)
   readpf (Maybe f) = (readpf f >>= return . Just) <++ return Nothing
+
+-- | Parse an optional value with a default.
+
+data OptF f = Opt (R f) f
+
+instance Format f => Format (OptF f) where
+  type R (OptF f) = R f
+  readpf (Opt r0 f) = readpf f <++ return r0
 
 -- | Parse one of the optional formats in a list.
 
