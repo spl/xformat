@@ -47,6 +47,7 @@ module Text.XFormat.Read (
   FloatF(..),
   DoubleF(..),
   StringF(..),
+  RestF(..),
 
   -- ** Class-based Format Descriptors
 
@@ -165,13 +166,22 @@ instance Format CharF where
   type R CharF = Char
   readpf Char = get
 
--- | Parse a string. Reads until the end of the input.
+-- | Parse a non-empty string.
 
 data StringF = String
 
 instance Format StringF where
   type R StringF = String
-  readpf String = munch (const True)
+  readpf String = many1 (satisfy (const True))
+
+-- | Parse a possibly empty string greedily. This is useful for capturing the
+-- rest of the input.
+
+data RestF = Rest
+
+instance Format RestF where
+  type R RestF = String
+  readpf Rest = munch (const True)
 
 -- | Parse an 'Int'.
 
