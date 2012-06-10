@@ -1,14 +1,12 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  Text.XFormat.Read
--- Copyright   :  (c) 2009 Sean Leather
+-- Copyright   :  (c) 2009-2012 Sean Leather
 -- License     :  BSD3
 --
 -- Maintainer  :  leather@cs.uu.nl
@@ -95,7 +93,7 @@ import Data.Char (isSpace)
 -- @
 --   data 'ReadF' a = 'Read' -- Format descriptor
 -- @
---  
+--
 -- @
 --   instance ('Prelude.Read' a) => Format ('ReadF' a) a where
 --     'readpf' 'Read' = 'readS_to_P' 'reads'
@@ -104,13 +102,14 @@ import Data.Char (isSpace)
 -- Note that you will need some of the combinators (such as 'readS_to_P') in
 -- "Text.ParserCombinators.ReadP".
 
-class Format d a | d -> a where
+class Format f where
+  type R f :: *
 
   -- | Given a format descriptor @d@, return a 'ReadP' parser for a type @a@.
   -- This function may not be very useful outside of defining an instance for
   -- 'Format'. Instead, consider using 'readsf' or 'readf'.
 
-  readpf :: d -> ReadP a
+  readpf :: f -> ReadP (R f)
 
 --------------------------------------------------------------------------------
 
@@ -118,14 +117,14 @@ class Format d a | d -> a where
 -- for the type @a@, i.e. @[(a, 'String')]@. This function simply transforms the
 -- 'ReadP' parser of 'readpf' to a 'ReadS' function.
 
-readsf :: (Format d a) => d -> ReadS a
+readsf :: Format f => f -> ReadS (R f)
 readsf fmt = readP_to_S (readpf fmt)
 
 -- | Given a format descriptor @d@ and a 'String', return an optional result of
 -- the type @a@. This function simply returns the head of the list from 'readsf'
 -- if it was successful.
 
-readf :: (Format d a) => d -> String -> Maybe a
+readf :: Format f => f -> String -> Maybe (R f)
 readf fmt s = headfirst (readsf fmt s)
   where
     headfirst []        = Nothing
@@ -142,12 +141,14 @@ readf fmt s = headfirst (readsf fmt s)
 
 -- | Parse a 'String' and return it if it is equal to the enclosed value.
 
-instance Format String String where
+instance Format String where
+  type R String = String
   readpf = string
 
 -- | Parse a 'Char' and return it if it is equal to the enclosed value.
 
-instance Format Char Char where
+instance Format Char where
+  type R Char = Char
   readpf = char
 
 --------------------------------------------------------------------------------
@@ -160,42 +161,48 @@ instance Format Char Char where
 
 data CharF = Char
 
-instance Format CharF Char where
+instance Format CharF where
+  type R CharF = Char
   readpf Char = get
 
 -- | Parse a string. Reads until the end of the input.
 
 data StringF = String
 
-instance Format StringF String where
+instance Format StringF where
+  type R StringF = String
   readpf String = munch (const True)
 
 -- | Parse an 'Int'.
 
 data IntF = Int
 
-instance Format IntF Int where
+instance Format IntF where
+  type R IntF = Int
   readpf Int = readS_to_P reads
 
 -- | Parse an 'Integer'.
 
 data IntegerF = Integer
 
-instance Format IntegerF Integer where
+instance Format IntegerF where
+  type R IntegerF = Integer
   readpf Integer = readS_to_P reads
 
 -- | Parse a 'Float'.
 
 data FloatF = Float
 
-instance Format FloatF Float where
+instance Format FloatF where
+  type R FloatF = Float
   readpf Float = readS_to_P reads
 
 -- | Parse a 'Double'.
 
 data DoubleF = Double
 
-instance Format DoubleF Double where
+instance Format DoubleF where
+  type R DoubleF = Double
   readpf Double = readS_to_P reads
 
 --------------------------------------------------------------------------------
@@ -208,14 +215,16 @@ instance Format DoubleF Double where
 
 data ReadF a = Read
 
-instance (Read a) => Format (ReadF a) a where
+instance Read a => Format (ReadF a) where
+  type R (ReadF a) = a
   readpf Read = readS_to_P reads
 
 -- | Parse a value whose type is an instance of the class 'Prelude.Num'.
 
 data NumF a = Num
 
-instance (Read a, Num a) => Format (NumF a) a where
+instance (Read a, Num a) => Format (NumF a) where
+  type R (NumF a) = a
   readpf Num = readS_to_P reads
 
 --------------------------------------------------------------------------------
@@ -226,7 +235,8 @@ instance (Read a, Num a) => Format (NumF a) a where
 
 -- | Parse a @'ReadP' a@ value.
 
-instance Format (ReadP a) a where
+instance Format (ReadP a) where
+  type R (ReadP a) = a
   readpf = id
 
 -- | Parse zero or more whitespace characters. Stop when a non-whitespace
@@ -234,7 +244,8 @@ instance Format (ReadP a) a where
 
 data SpaceF = Space
 
-instance Format SpaceF String where
+instance Format SpaceF where
+  type R SpaceF = String
   readpf Space = munch isSpace
 
 --------------------------------------------------------------------------------
@@ -259,10 +270,11 @@ infixr 8 :%:
 
 infixr 8 %
 
-instance (Format d1 a1, Format d2 a2) => Format (d1 :%: d2) (a1 :%: a2) where
-  readpf (d1 :%: d2) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
+instance (Format f1, Format f2) => Format (f1 :%: f2) where
+  type R (f1 :%: f2) = R f1 :%: R f2
+  readpf (f1 :%: f2) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
     return (a1 :%: a2)
 
 -- | Parse a format of one type wrapped by two other formats of a different
@@ -270,43 +282,45 @@ instance (Format d1 a1, Format d2 a2) => Format (d1 :%: d2) (a1 :%: a2) where
 
 data WrapF inner outer = Wrap outer inner outer
 
-instance (Format din ain, Format dout aout)
-  => Format (WrapF din dout) (aout :%: ain :%: aout) where
-  readpf (Wrap doutl din doutr) = do
-    aoutl <- readpf doutl
-    ain <- readpf din
-    aoutr <- readpf doutr
+instance (Format inner, Format outer) => Format (WrapF inner outer) where
+  type R (WrapF inner outer) = R outer :%: R inner :%: R outer
+  readpf (Wrap fl f fr) = do
+    aoutl <- readpf fl
+    ain <- readpf f
+    aoutr <- readpf fr
     return (aoutl :%: ain :%: aoutr)
 
 -- | Parse an optional value.
 
 data MaybeF a = Maybe a
 
-instance (Format d a) => Format (MaybeF d) (Maybe a) where
-  readpf (Maybe d) = (readpf d >>= return . Just) <++ return Nothing
+instance Format f => Format (MaybeF f) where
+  type R (MaybeF f) = Maybe (R f)
+  readpf (Maybe f) = (readpf f >>= return . Just) <++ return Nothing
 
 -- | Parse one of the optional formats in a list.
 
 data ChoiceF a = Choice [a]
 
-instance (Format d a) => Format (ChoiceF d) a where
-  readpf (Choice ds) = choice (readpf <$> ds)
+instance Format f => Format (ChoiceF f) where
+  type R (ChoiceF f) = R f
+  readpf (Choice fs) = choice (readpf <$> fs)
 
 -- | Parse one of two formats in a fully symmetric choice.
 
 data EitherF a b = Either a b
 
-instance (Format d1 a1, Format d2 a2) => Format (EitherF d1 d2) (Either a1 a2) where
-  readpf (Either d1 d2) =
-    (Left <$> readpf d1) +++ (Right <$> readpf d2)
+instance (Format f1, Format f2) => Format (EitherF f1 f2) where
+  type R (EitherF f1 f2) = Either (R f1) (R f2)
+  readpf (Either f1 f2) = (Left <$> readpf f1) +++ (Right <$> readpf f2)
 
 -- | Parse one of two formats, trying the left one first.
 
 data EitherLF a b = EitherL a b
 
-instance (Format d1 a1, Format d2 a2) => Format (EitherLF d1 d2) (Either a1 a2) where
-  readpf (EitherL d1 d2) =
-    (Left <$> readpf d1) <++ (Right <$> readpf d2)
+instance (Format f1, Format f2) => Format (EitherLF f1 f2) where
+  type R (EitherLF f1 f2) = Either (R f1) (R f2)
+  readpf (EitherL f1 f2) = (Left <$> readpf f1) <++ (Right <$> readpf f2)
 
 --------------------------------------------------------------------------------
 
@@ -314,259 +328,293 @@ instance (Format d1 a1, Format d2 a2) => Format (EitherLF d1 d2) (Either a1 a2) 
 -- Tuple format descriptors: These all follow the same pattern.
 --
 
-instance (Format d1 a1, Format d2 a2) => Format (d1, d2) (a1, a2) where
-  readpf (d1, d2) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
+instance
+  (Format f1, Format f2)
+  => Format
+  (f1, f2)
+  where
+  type R (f1, f2) =
+    (R f1, R f2)
+  readpf (f1, f2) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
     return (a1, a2)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3)
+  (Format f1, Format f2, Format f3)
   => Format
-  (d1, d2, d3)
-  (a1, a2, a3)
+  (f1, f2, f3)
   where
-  readpf (d1, d2, d3) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
+  type R (f1, f2, f3) =
+    (R f1, R f2, R f3)
+  readpf (f1, f2, f3) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
     return (a1, a2, a3)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4)
+  (Format f1, Format f2, Format f3, Format f4)
   => Format
-  (d1, d2, d3, d4)
-  (a1, a2, a3, a4)
+  (f1, f2, f3, f4)
   where
-  readpf (d1, d2, d3, d4) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
+  type R (f1, f2, f3, f4) =
+    (R f1, R f2, R f3, R f4)
+  readpf (f1, f2, f3, f4) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
     return (a1, a2, a3, a4)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5)
+  (Format f1, Format f2, Format f3, Format f4, Format f5)
   => Format
-  (d1, d2, d3, d4, d5)
-  (a1, a2, a3, a4, a5)
+  (f1, f2, f3, f4, f5)
   where
-  readpf (d1, d2, d3, d4, d5) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
+  type R (f1, f2, f3, f4, f5) =
+    (R f1, R f2, R f3, R f4, R f5)
+  readpf (f1, f2, f3, f4, f5) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
     return (a1, a2, a3, a4, a5)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6)
   => Format
-  (d1, d2, d3, d4, d5, d6)
-  (a1, a2, a3, a4, a5, a6)
+  (f1, f2, f3, f4, f5, f6)
   where
-  readpf (d1, d2, d3, d4, d5, d6) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
+  type R (f1, f2, f3, f4, f5, f6) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6)
+  readpf (f1, f2, f3, f4, f5, f6) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
     return (a1, a2, a3, a4, a5, a6)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7)
-  (a1, a2, a3, a4, a5, a6, a7)
+  (f1, f2, f3, f4, f5, f6, f7)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
+  type R (f1, f2, f3, f4, f5, f6, f7) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7)
+  readpf (f1, f2, f3, f4, f5, f6, f7) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
     return (a1, a2, a3, a4, a5, a6, a7)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8)
-  (a1, a2, a3, a4, a5, a6, a7, a8)
+  (f1, f2, f3, f4, f5, f6, f7, f8)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
+  type R (f1, f2, f3, f4, f5, f6, f7, f8) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
     return (a1, a2, a3, a4, a5, a6, a7, a8)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10,
-   Format d11 a11)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
-    a11 <- readpf d11
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10,
+     R f11)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
+    a11 <- readpf f11
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10,
-   Format d11 a11, Format d12 a12)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
-    a11 <- readpf d11
-    a12 <- readpf d12
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10,
+     R f11, R f12)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
+    a11 <- readpf f11
+    a12 <- readpf f12
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10,
-   Format d11 a11, Format d12 a12, Format d13 a13)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
-    a11 <- readpf d11
-    a12 <- readpf d12
-    a13 <- readpf d13
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10,
+     R f11, R f12, R f13)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
+    a11 <- readpf f11
+    a12 <- readpf f12
+    a13 <- readpf f13
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10,
-   Format d11 a11, Format d12 a12, Format d13 a13, Format d14 a14)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13, Format f14)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
-    a11 <- readpf d11
-    a12 <- readpf d12
-    a13 <- readpf d13
-    a14 <- readpf d14
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10,
+     R f11, R f12, R f13, R f14)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
+    a11 <- readpf f11
+    a12 <- readpf f12
+    a13 <- readpf f13
+    a14 <- readpf f14
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)
 
 instance
-  (Format d1 a1, Format d2 a2, Format d3 a3, Format d4 a4, Format d5 a5,
-   Format d6 a6, Format d7 a7, Format d8 a8, Format d9 a9, Format d10 a10,
-   Format d11 a11, Format d12 a12, Format d13 a13, Format d14 a14,
-   Format d15 a15)
+  (Format f1, Format f2, Format f3, Format f4, Format f5,
+   Format f6, Format f7, Format f8, Format f9, Format f10,
+   Format f11, Format f12, Format f13, Format f14,
+   Format f15)
   => Format
-  (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15)
-  (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15)
+  (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15)
   where
-  readpf (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15) = do
-    a1 <- readpf d1
-    a2 <- readpf d2
-    a3 <- readpf d3
-    a4 <- readpf d4
-    a5 <- readpf d5
-    a6 <- readpf d6
-    a7 <- readpf d7
-    a8 <- readpf d8
-    a9 <- readpf d9
-    a10 <- readpf d10
-    a11 <- readpf d11
-    a12 <- readpf d12
-    a13 <- readpf d13
-    a14 <- readpf d14
-    a15 <- readpf d15
+  type R (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
+    (R f1, R f2, R f3, R f4, R f5,
+     R f6, R f7, R f8, R f9, R f10,
+     R f11, R f12, R f13, R f14, R f15)
+  readpf (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) = do
+    a1 <- readpf f1
+    a2 <- readpf f2
+    a3 <- readpf f3
+    a4 <- readpf f4
+    a5 <- readpf f5
+    a6 <- readpf f6
+    a7 <- readpf f7
+    a8 <- readpf f8
+    a9 <- readpf f9
+    a10 <- readpf f10
+    a11 <- readpf f11
+    a12 <- readpf f12
+    a13 <- readpf f13
+    a14 <- readpf f14
+    a15 <- readpf f15
     return (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15)
 
