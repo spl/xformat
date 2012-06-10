@@ -59,7 +59,6 @@ module Text.XFormat.Read (
   (:%:)(..),
   (%),
 
-  WrapF(..),
   MaybeF(..),
   ChoiceF(..),
   EitherF(..),
@@ -68,6 +67,11 @@ module Text.XFormat.Read (
   -- ** Other Format Descriptors
 
   SpaceF(..),
+  BetweenF(..),
+  quotes,
+  parens,
+  brackets,
+  braces,
 
 ) where
 
@@ -287,19 +291,6 @@ instance (Format f1, Format f2) => Format (f1 :%: f2) where
     a2 <- readpf f2
     return (a1 :%: a2)
 
--- | Parse a format of one type wrapped by two other formats of a different
--- type.
-
-data WrapF inner outer = Wrap outer inner outer
-
-instance (Format inner, Format outer) => Format (WrapF inner outer) where
-  type R (WrapF inner outer) = R outer :%: R inner :%: R outer
-  readpf (Wrap fl f fr) = do
-    aoutl <- readpf fl
-    ain <- readpf f
-    aoutr <- readpf fr
-    return (aoutl :%: ain :%: aoutr)
-
 -- | Parse an optional value.
 
 data MaybeF a = Maybe a
@@ -331,6 +322,26 @@ data EitherLF a b = EitherL a b
 instance (Format f1, Format f2) => Format (EitherLF f1 f2) where
   type R (EitherLF f1 f2) = Either (R f1) (R f2)
   readpf (EitherL f1 f2) = (Left <$> readpf f1) <++ (Right <$> readpf f2)
+
+-- | Parse a format between two other formats.
+
+data BetweenF fo fc f = Between fo fc f
+
+instance (Format fo, Format fc, Format f) => Format (BetweenF fo fc f) where
+  type R (BetweenF fo fc f) = R f
+  readpf (Between fo fc f) = between (readpf fo) (readpf fc) (readpf f)
+
+quotes :: f -> BetweenF Char Char f
+quotes = Between '"' '"'
+
+parens :: f -> BetweenF Char Char f
+parens = Between '(' ')'
+
+brackets :: f -> BetweenF Char Char f
+brackets = Between '[' ']'
+
+braces :: f -> BetweenF Char Char f
+braces = Between '{' '}'
 
 --------------------------------------------------------------------------------
 

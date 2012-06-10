@@ -48,7 +48,10 @@ testRecursive = and
       Just ('~' :%: (99 :%: (" " :%: (9.9 :%: (" " :%: (0.3 :%: ""))))))
   , readf String "" == Nothing
   , readf String "a" == Just "a"
-  , readf (Wrap '(' Int ')') "(1)" == Just ('(' % 1 % ')')
+  , readf (parens Int) "(1)" == Just 1
+  , readf (quotes Int) "\"1\"" == Just 1
+  , readf (brackets Int) "[1]" == Just 1
+  , readf (braces Int) "{1}" == Just 1
   , readf (Maybe Int) "1" == Just (Just 1)
   , readf (Maybe Int) "a" == Just Nothing
   , readf (Choice ['(',')']) ")" == Just ')'
