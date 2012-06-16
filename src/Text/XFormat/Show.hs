@@ -37,6 +37,7 @@ module Text.XFormat.Show (
 
   showsf,
   showf,
+  printf,
 
   -- * Format Descriptors
 
@@ -130,7 +131,10 @@ showsf fmt = apply (showsf' fmt)
 -- input.
 
 showf :: (Format f, Apply (F f)) => f -> A (F f) String
-showf fmt = apply (fmap (\f -> f "") (showsf' fmt))
+showf fmt = apply (fmap ($ "") (showsf' fmt))
+
+printf :: (Format f, Apply (F f)) => f -> A (F f) (IO ())
+printf fmt = apply (fmap (\f -> putStr (f "")) (showsf' fmt))
 
 --------------------------------------------------------------------------------
 
