@@ -106,13 +106,13 @@ module Text.XFormat.Show (
 -- The 'Arr' type is one of several 'Functor' wrappers necessary for defining
 -- these instances.
 
-class Functor (S f) => Format f where
-  type S f :: * -> *
+class Functor (F f) => Format f where
+  type F f :: * -> *
 
-  -- | Given a format descriptor @f@, the result type @S f@ is a functor whose
+  -- | Given a format descriptor @f@, the result type @F f@ is a functor whose
   -- type parameter is @'String' -> 'String'@.
 
-  showsf' :: f -> S f ShowS
+  showsf' :: f -> F f ShowS
 
 --------------------------------------------------------------------------------
 
@@ -121,7 +121,7 @@ class Functor (S f) => Format f where
 -- This function removes the 'Functor' wrappers from the output of 'showsf'' to
 -- get the variable number of arguments.
 
-showsf :: (Format f, Apply (S f)) => f -> A (S f) ShowS
+showsf :: (Format f, Apply (F f)) => f -> A (F f) ShowS
 showsf fmt = apply (showsf' fmt)
 
 -- | Given a format descriptor @fmt@ and a variable number of arguments
@@ -129,7 +129,7 @@ showsf fmt = apply (showsf' fmt)
 -- function is the same as 'showsf' but has already been applied to a 'String'
 -- input.
 
-showf :: (Format f, Apply (S f)) => f -> A (S f) String
+showf :: (Format f, Apply (F f)) => f -> A (F f) String
 showf fmt = apply (fmap (\f -> f "") (showsf' fmt))
 
 --------------------------------------------------------------------------------
@@ -199,13 +199,13 @@ instance (Apply f, Apply g) => Apply (f :.: g) where apply (Comp fg)  = apply (f
 -- | Print the enclosed 'String'.
 
 instance Format String where
-  type S String = Id
+  type F String = Id
   showsf' s = Id (showString s)
 
 -- | Print the enclosed 'Char'.
 
 instance Format Char where
-  type S Char = Id
+  type F Char = Id
   showsf' c = Id (showChar c)
 
 --------------------------------------------------------------------------------
@@ -219,7 +219,7 @@ instance Format Char where
 data CharF = Char
 
 instance Format CharF where
-  type S CharF = Arr Char
+  type F CharF = Arr Char
   showsf' Char = Arr showChar
 
 -- | Print a string argument.
@@ -227,7 +227,7 @@ instance Format CharF where
 data StringF = String
 
 instance Format StringF where
-  type S StringF = Arr String
+  type F StringF = Arr String
   showsf' String = Arr showString
 
 -- | Print an 'Int' argument.
@@ -235,7 +235,7 @@ instance Format StringF where
 data IntF = Int
 
 instance Format IntF where
-  type S IntF = Arr Int
+  type F IntF = Arr Int
   showsf' Int = Arr shows
 
 -- | Print an 'Integer' argument.
@@ -243,7 +243,7 @@ instance Format IntF where
 data IntegerF = Integer
 
 instance Format IntegerF where
-  type S IntegerF = Arr Integer
+  type F IntegerF = Arr Integer
   showsf' Integer = Arr shows
 
 -- | Print a 'Float' argument.
@@ -251,7 +251,7 @@ instance Format IntegerF where
 data FloatF = Float
 
 instance Format FloatF where
-  type S FloatF = Arr Float
+  type F FloatF = Arr Float
   showsf' Float = Arr shows
 
 -- | Print a 'Double' argument.
@@ -259,7 +259,7 @@ instance Format FloatF where
 data DoubleF = Double
 
 instance Format DoubleF where
-  type S DoubleF = Arr Double
+  type F DoubleF = Arr Double
   showsf' Double = Arr shows
 
 --------------------------------------------------------------------------------
@@ -273,7 +273,7 @@ instance Format DoubleF where
 data ShowF a = Show
 
 instance (Show a) => Format (ShowF a) where
-  type S (ShowF a) = Arr a
+  type F (ShowF a) = Arr a
   showsf' Show = Arr shows
 
 -- | Print an argument whose type is an instance of the class 'Prelude.Num'.
@@ -281,7 +281,7 @@ instance (Show a) => Format (ShowF a) where
 data NumF a = Num
 
 instance (Num a, Show a) => Format (NumF a) where
-  type S (NumF a) = Arr a
+  type F (NumF a) = Arr a
   showsf' Num = Arr shows
 
 --------------------------------------------------------------------------------
@@ -295,7 +295,7 @@ instance (Num a, Show a) => Format (NumF a) where
 data SpacesF = Spaces Int
 
 instance Format SpacesF where
-  type S SpacesF = Id
+  type F SpacesF = Id
   showsf' (Spaces n) = Id (showString (replicate n ' '))
 
 --------------------------------------------------------------------------------
@@ -321,7 +321,7 @@ infixr 8 :%:
 infixr 8 %
 
 instance (Format f, Format g) => Format (f :%: g) where
-  type S (f :%: g) = S f :.: S g
+  type F (f :%: g) = F f :.: F g
   showsf' (f :%: g) = showsf' f <> showsf' g
 
 -- | Print a format of one type wrapped by two other formats of a different
@@ -330,7 +330,7 @@ instance (Format f, Format g) => Format (f :%: g) where
 data WrapF inner outer = Wrap outer inner outer
 
 instance (Format din, Format dout) => Format (WrapF din dout) where
-  type S (WrapF din dout) = S dout :.: S din :.: S dout
+  type F (WrapF din dout) = F dout :.: F din :.: F dout
   showsf' (Wrap doutl din doutr) = showsf' doutl <> showsf' din <> showsf' doutr
 
 -- | Print a format aligned left or right within a column of the given width.
@@ -358,11 +358,11 @@ align doChop dir wid input =
     addSpaces = if len < wid then showString spaces else id
 
 instance Format f => Format (AlignF f) where
-  type S (AlignF f) = S f
+  type F (AlignF f) = F f
   showsf' (Align dir wid f) = fmap (align False dir wid) (showsf' f)
 
 instance Format f => Format (AlignChopF f) where
-  type S (AlignChopF f) = S f
+  type F (AlignChopF f) = F f
   showsf' (AlignChop dir wid f) = fmap (align True dir wid) (showsf' f)
 
 --------------------------------------------------------------------------------
@@ -376,8 +376,8 @@ instance
   => Format
   (f1, f2)
   where
-  type S (f1, f2) =
-    S f1 :.: S f2
+  type F (f1, f2) =
+    F f1 :.: F f2
   showsf' (f1, f2) =
     showsf' f1 <> showsf' f2
 
@@ -386,8 +386,8 @@ instance
   => Format
   (f1, f2, f3)
   where
-  type S (f1, f2, f3) =
-    S f1 :.: S f2 :.: S f3
+  type F (f1, f2, f3) =
+    F f1 :.: F f2 :.: F f3
   showsf' (f1, f2, f3) =
     showsf' f1 <> showsf' f2 <> showsf' f3
 
@@ -396,8 +396,8 @@ instance
   => Format
   (f1, f2, f3, f4)
   where
-  type S (f1, f2, f3, f4) =
-    S f1 :.: S f2 :.: S f3 :.: S f4
+  type F (f1, f2, f3, f4) =
+    F f1 :.: F f2 :.: F f3 :.: F f4
   showsf' (f1, f2, f3, f4) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4
 
@@ -406,8 +406,8 @@ instance
   => Format
   (f1, f2, f3, f4, f5)
   where
-  type S (f1, f2, f3, f4, f5) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5
+  type F (f1, f2, f3, f4, f5) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5
   showsf' (f1, f2, f3, f4, f5) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5
 
@@ -417,9 +417,9 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6)
   where
-  type S (f1, f2, f3, f4, f5, f6) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6
+  type F (f1, f2, f3, f4, f5, f6) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6
   showsf' (f1, f2, f3, f4, f5, f6) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6
@@ -430,9 +430,9 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7
+  type F (f1, f2, f3, f4, f5, f6, f7) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7
   showsf' (f1, f2, f3, f4, f5, f6, f7) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7
@@ -443,9 +443,9 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8
+  type F (f1, f2, f3, f4, f5, f6, f7, f8) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8
@@ -456,9 +456,9 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9
@@ -469,9 +469,9 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10
@@ -483,10 +483,10 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
-    S f11
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10 :.:
+    F f11
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
@@ -499,10 +499,10 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
-    S f11 :.: S f12
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10 :.:
+    F f11 :.: F f12
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
@@ -515,10 +515,10 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
-    S f11 :.: S f12 :.: S f13
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10 :.:
+    F f11 :.: F f12 :.: F f13
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
@@ -531,10 +531,10 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
-    S f11 :.: S f12 :.: S f13 :.: S f14
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10 :.:
+    F f11 :.: F f12 :.: F f13 :.: F f14
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
@@ -548,10 +548,10 @@ instance
   => Format
   (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15)
   where
-  type S (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
-    S f1 :.: S f2 :.: S f3 :.: S f4 :.: S f5 :.:
-    S f6 :.: S f7 :.: S f8 :.: S f9 :.: S f10 :.:
-    S f11 :.: S f12 :.: S f13 :.: S f14 :.: S f15
+  type F (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
+    F f1 :.: F f2 :.: F f3 :.: F f4 :.: F f5 :.:
+    F f6 :.: F f7 :.: F f8 :.: F f9 :.: F f10 :.:
+    F f11 :.: F f12 :.: F f13 :.: F f14 :.: F f15
   showsf' (f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) =
     showsf' f1 <> showsf' f2 <> showsf' f3 <> showsf' f4 <> showsf' f5 <>
     showsf' f6 <> showsf' f7 <> showsf' f8 <> showsf' f9 <> showsf' f10 <>
