@@ -55,12 +55,14 @@ testRecursive :: Bool
 testRecursive = and
   [ showf (Show % Int % String) 4.05 20 " blah" == "4.0520 blah"
   , showf (Wrap '(' Int ')') 24 == "(24)"
-  , showf (Align L 5 String) "abc" == "abc  "
-  , showf (Align R 5 Int) 999 == "  999"
-  , showf (Align L 5 "1234567") == "1234567"
-  , showf (AlignChop L 5 "123") == "123  "
-  , showf (AlignChop L 3 "12345") == "123"
-  , showf (AlignChop R 3 "12345") == "345"
+  , showf (fillR 5 String) "abc" == "abc  "
+  , showf (fillL 5 Int) 999 == "  999"
+  , showf (fillR 5 "1234567") == "1234567"
+  , showf (fillR' 5 "123") == "123  "
+  , showf (fillR' 3 "12345") == "123"
+  , showf (fillL' 3 "12345") == "345"
+  , showf (zero 5 Int) 999 == "00999"
+  , showf (zero' 2 Int) 123 == "23"
   ]
 
 testTuples :: Bool

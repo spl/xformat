@@ -63,8 +63,7 @@ module Text.XFormat.Show (
   (%),
 
   WrapF(..),
-  AlignF(..),
-  AlignChopF(..),
+  FillF(..),
   Dir(..),
 
   -- ** Other Format Descriptors
@@ -77,6 +76,10 @@ module Text.XFormat.Show (
   Arr(..),
   (:.:)(..),
   (<>),
+
+  fillL, fillL',
+  fillR, fillR',
+  zero, zero',
 
 ) where
 
@@ -337,37 +340,46 @@ instance (Format din, Format dout) => Format (WrapF din dout) where
   type F (WrapF din dout) = F dout :.: F din :.: F dout
   showsf' (Wrap doutl din doutr) = showsf' doutl <> showsf' din <> showsf' doutr
 
--- | Print a format aligned left or right within a column of the given width.
+-- | Fill in up to the given width.
 
-data AlignF a = Align Dir Int a
+data FillF f = Fill Dir Bool Char Int f
 
--- | Same as 'AlignF' but chop off the output if it extends past the column
--- width.
-
-data AlignChopF a = AlignChop Dir Int a
-
--- | Direction (left or right) used for 'AlignF' and 'AlignChopF'.
+-- | Direction (left or right) for 'FillF'
 
 data Dir = L | R
 
-align :: Bool -> Dir -> Int -> ShowS -> ShowS
-align doChop dir wid input =
+fill :: Dir -> Bool -> Char -> Int -> ShowS -> ShowS
+fill dir doChop ch wid input =
   case dir of
-    L -> chop (take wid)         . input . addSpaces
-    R -> chop (drop (len - wid)) . addSpaces . input
+    L -> chop (drop (len - wid)) . excess . input
+    R -> chop (take wid)         . input . excess
   where
     len = length (input "")
-    spaces = replicate (wid - len) ' '
     chop act = if doChop && len > wid then act else id
-    addSpaces = if len < wid then showString spaces else id
+    excess | len < wid = showString $ replicate (wid - len) ch
+           | otherwise = id
 
-instance Format f => Format (AlignF f) where
-  type F (AlignF f) = F f
-  showsf' (Align dir wid f) = fmap (align False dir wid) (showsf' f)
+instance Format f => Format (FillF f) where
+  type F (FillF f) = F f
+  showsf' (Fill dir chp fil wid f) = fmap (fill dir chp fil wid) (showsf' f)
 
-instance Format f => Format (AlignChopF f) where
-  type F (AlignChopF f) = F f
-  showsf' (AlignChop dir wid f) = fmap (align True dir wid) (showsf' f)
+fillL :: Int -> f -> FillF f
+fillL = Fill L False ' '
+
+fillL' :: Int -> f -> FillF f
+fillL' = Fill L True ' '
+
+fillR :: Int -> f -> FillF f
+fillR = Fill R False ' '
+
+fillR' :: Int -> f -> FillF f
+fillR' = Fill R True ' '
+
+zero :: Int -> f -> FillF f
+zero = Fill L False '0'
+
+zero' :: Int -> f -> FillF f
+zero' = Fill L True '0'
 
 --------------------------------------------------------------------------------
 
