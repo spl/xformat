@@ -55,6 +55,10 @@ testRecursive :: Bool
 testRecursive = and
   [ showf (Show % Int % String) 4.05 20 " blah" == "4.0520 blah"
   , showf (Wrap '(' Int ')') 24 == "(24)"
+  , showf (Prec 2) 24 == "24.00"
+  , showf (Prec 2) 1.2345 == "1.23"
+  , showf (Prec 2) 9.8765 == "9.88"
+  , showf (Prec 0) 9.8765 == "10"
   , showf (fillR 5 String) "abc" == "abc  "
   , showf (fillL 5 Int) 999 == "  999"
   , showf (fillR 5 "1234567") == "1234567"

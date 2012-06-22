@@ -56,6 +56,7 @@ module Text.XFormat.Show (
 
   ShowF(..),
   NumF(..),
+  PrecF(..),
 
   -- ** Recursive Format Descriptors
 
@@ -85,6 +86,9 @@ module Text.XFormat.Show (
 
 --------------------------------------------------------------------------------
 
+import qualified Text.Printf as TP
+
+--------------------------------------------------------------------------------
 
 -- | This class provides the signature for an extensible, type-indexed function
 -- that uses a format descriptor to print a variable number of well-typed
@@ -260,6 +264,21 @@ data FloatF = Float
 instance Format FloatF where
   type F FloatF = Arr Float
   showsf' Float = Arr shows
+
+-- | Print the given number of decimal places.
+
+data PrecF a = Prec Int
+
+instance Real a => Format (PrecF a) where
+  type F (PrecF a) = Arr a
+  showsf' (Prec i)
+    | i < 0 =
+      error $ "Text.XFormat.Show.showsf': bad precision: " ++ show i
+    | otherwise =
+      Arr (showString . TP.printf ("%." ++ show i ++ "f") . toDouble)
+        where
+          toDouble :: Real a => a -> Double
+          toDouble = realToFrac
 
 -- | Print a 'Double' argument.
 
