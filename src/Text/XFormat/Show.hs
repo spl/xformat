@@ -178,7 +178,7 @@ instance (Functor f, Functor g) => Functor (f :.: g) where
 
 -- | Helpful function for defining instances of composed format descriptors.
 
-(<>) :: (Functor f, Functor g) => f (b -> c) -> g (a -> b) -> (:.:) f g (a -> c)
+(<>) :: (Functor f, Functor g) => f ShowS -> g ShowS -> (:.:) f g ShowS
 f <> g = Comp (fmap (\s -> fmap (\t -> s . t) g) f)
 infixr 8 <>
 
