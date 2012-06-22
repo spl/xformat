@@ -114,7 +114,7 @@ import qualified Text.Printf as TP
 -- The 'Arr' type is one of several 'Functor' wrappers necessary for defining
 -- these instances.
 
-class Functor (F f) => Format f where
+class Apply (F f) => Format f where
   type F f :: * -> *
 
   -- | Given a format descriptor @f@, the result type @F f@ is a functor whose
@@ -129,19 +129,19 @@ class Functor (F f) => Format f where
 -- This function removes the 'Functor' wrappers from the output of 'showsf'' to
 -- get the variable number of arguments.
 
-showsf :: (Format f, Apply (F f)) => f -> A (F f) ShowS
-showsf fmt = apply (showsf' fmt)
+showsf :: Format f => f -> A (F f) ShowS
+showsf = apply . showsf'
 
 -- | Given a format descriptor @fmt@ and a variable number of arguments
 -- represented by @a@ (and determined by @fmt@), return a 'String' result. This
 -- function is the same as 'showsf' but has already been applied to a 'String'
 -- input.
 
-showf :: (Format f, Apply (F f)) => f -> A (F f) String
-showf fmt = apply (fmap ($ "") (showsf' fmt))
+showf :: Format f => f -> A (F f) String
+showf = apply . fmap ($ "") . showsf'
 
-printf :: (Format f, Apply (F f)) => f -> A (F f) (IO ())
-printf fmt = apply (fmap (\f -> putStr (f "")) (showsf' fmt))
+printf :: Format f => f -> A (F f) (IO ())
+printf = apply . fmap (\f -> putStr (f "")) . showsf'
 
 --------------------------------------------------------------------------------
 
