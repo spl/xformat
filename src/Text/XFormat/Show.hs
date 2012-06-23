@@ -31,7 +31,6 @@ module Text.XFormat.Show (
   -- * The Classes
 
   Format(..),
-  Apply(..),
 
   -- * The Functions
 
@@ -71,13 +70,6 @@ module Text.XFormat.Show (
 
   SpacesF(..),
 
-  -- * Utilities for Defining Instances
-
-  Id(..),
-  Arr(..),
-  (:.:)(..),
-  (<>),
-
   fillL, fillL',
   fillR, fillR',
   zero, zero',
@@ -86,6 +78,7 @@ module Text.XFormat.Show (
 
 --------------------------------------------------------------------------------
 
+import Data.Functor.Functionalize
 import qualified Text.Printf as TP
 
 --------------------------------------------------------------------------------
@@ -114,7 +107,7 @@ import qualified Text.Printf as TP
 -- The 'Arr' type is one of several 'Functor' wrappers necessary for defining
 -- these instances.
 
-class Apply (F f) => Format f where
+class Functionalize (F f) => Format f where
   type F f :: * -> *
 
   -- | Given a format descriptor @f@, the result type @F f@ is a functor whose
@@ -129,74 +122,32 @@ class Apply (F f) => Format f where
 -- This function removes the 'Functor' wrappers from the output of 'showsf'' to
 -- get the variable number of arguments.
 
-showsf :: Format f => f -> A (F f) ShowS
-showsf = apply . showsf'
+showsf :: Format f => f -> F f :=> ShowS
+showsf = funfun . showsf'
 
 -- | Given a format descriptor @fmt@ and a variable number of arguments
 -- represented by @a@ (and determined by @fmt@), return a 'String' result. This
 -- function is the same as 'showsf' but has already been applied to a 'String'
 -- input.
 
-showf :: Format f => f -> A (F f) String
-showf = apply . fmap ($ "") . showsf'
+showf :: Format f => f -> F f :=> String
+showf = funfun . fmap ($ "") . showsf'
 
-printf :: Format f => f -> A (F f) (IO ())
-printf = apply . fmap (\f -> putStr (f "")) . showsf'
+printf :: Format f => f -> F f :=> IO ()
+printf = funfun . fmap (\f -> putStr (f "")) . showsf'
 
 --------------------------------------------------------------------------------
-
---
--- Functor wrappers
---
-
--- | Wrapper for a format constant that does not take any arguments. Used in
--- @instance 'Format' 'String' Id@ for example.
-
-newtype Id a = Id a
-
-instance Functor Id where
-  fmap f (Id x) = Id (f x)
-
--- | Wrapper for a format descriptor that takes an argument. Used in @instance
--- ('Prelude.Show' a) => 'Format' ('ShowF' a) (Arr a)@ for example.
-
-newtype Arr a b = Arr (a -> b)
-
-instance Functor (Arr a) where
-  fmap f (Arr g) = Arr (f . g)
-
--- | Wrapper for a format descriptor that composes two descriptors. Used in
--- @instance ('Format' d1 f1, 'Format' d2 f2) => 'Format' (d1 :%: d2) (f1 :.:
--- f2)@ for example.
-
-newtype (:.:) f g a = Comp (f (g a))
-
-infixr 8 :.:
-
-instance (Functor f, Functor g) => Functor (f :.: g) where
-  fmap f (Comp fga) = Comp (fmap (fmap f) fga)
 
 -- | Helpful function for defining instances of composed format descriptors.
 
-(<>) :: (Functor f, Functor g) => f ShowS -> g ShowS -> (:.:) f g ShowS
-f <> g = Comp (fmap (\s -> fmap (\t -> s . t) g) f)
-infixr 8 <>
+(<>) :: (Functor f, Functor g) => f ShowS -> g ShowS -> Compose f g ShowS
+f <> g = Compose (fmap (\s -> fmap (\t -> s . t) g) f)
+infixr 6 <>
 
---------------------------------------------------------------------------------
+-- | Convenient type synonym operator
 
---
--- Functor wrapper removal
---
-
-type family A (f :: * -> *) a :: *
-type instance A Id        a  = a
-type instance A (Arr a)   b  = a -> b
-type instance A (f :.: g) a  = A f (A g a)
-
-class Functor f => Apply f                     where apply :: f a -> A f a
-instance Apply Id                              where apply (Id a)     = a
-instance Apply (Arr a)                         where apply (Arr f)    = f
-instance (Apply f, Apply g) => Apply (f :.: g) where apply (Comp fg)  = apply (fmap apply fg)
+type f :.: g = Compose f g
+infixr 6 :.:
 
 --------------------------------------------------------------------------------
 
@@ -210,14 +161,14 @@ instance (Apply f, Apply g) => Apply (f :.: g) where apply (Comp fg)  = apply (f
 -- | Print the enclosed 'String'.
 
 instance Format String where
-  type F String = Id
-  showsf' s = Id (showString s)
+  type F String = Identity
+  showsf' s = Identity (showString s)
 
 -- | Print the enclosed 'Char'.
 
 instance Format Char where
-  type F Char = Id
-  showsf' c = Id (showChar c)
+  type F Char = Identity
+  showsf' c = Identity (showChar c)
 
 --------------------------------------------------------------------------------
 
@@ -231,7 +182,7 @@ data CharF = Char
 
 instance Format CharF where
   type F CharF = Arr Char
-  showsf' Char = Arr showChar
+  showsf' Char = showChar
 
 -- | Print a string argument.
 
@@ -239,7 +190,7 @@ data StringF = String
 
 instance Format StringF where
   type F StringF = Arr String
-  showsf' String = Arr showString
+  showsf' String = showString
 
 -- | Print an 'Int' argument.
 
@@ -247,7 +198,7 @@ data IntF = Int
 
 instance Format IntF where
   type F IntF = Arr Int
-  showsf' Int = Arr shows
+  showsf' Int = shows
 
 -- | Print an 'Integer' argument.
 
@@ -255,7 +206,7 @@ data IntegerF = Integer
 
 instance Format IntegerF where
   type F IntegerF = Arr Integer
-  showsf' Integer = Arr shows
+  showsf' Integer = shows
 
 -- | Print a 'Float' argument.
 
@@ -263,7 +214,7 @@ data FloatF = Float
 
 instance Format FloatF where
   type F FloatF = Arr Float
-  showsf' Float = Arr shows
+  showsf' Float = shows
 
 -- | Print the given number of decimal places.
 
@@ -275,7 +226,7 @@ instance Real a => Format (PrecF a) where
     | i < 0 =
       error $ "Text.XFormat.Show.showsf': bad precision: " ++ show i
     | otherwise =
-      Arr (showString . TP.printf ("%." ++ show i ++ "f") . toDouble)
+      showString . TP.printf ("%." ++ show i ++ "f") . toDouble
         where
           toDouble :: Real a => a -> Double
           toDouble = realToFrac
@@ -286,7 +237,7 @@ data DoubleF = Double
 
 instance Format DoubleF where
   type F DoubleF = Arr Double
-  showsf' Double = Arr shows
+  showsf' Double = shows
 
 --------------------------------------------------------------------------------
 
@@ -300,7 +251,7 @@ data ShowF a = Show
 
 instance (Show a) => Format (ShowF a) where
   type F (ShowF a) = Arr a
-  showsf' Show = Arr shows
+  showsf' Show = shows
 
 -- | Print an argument whose type is an instance of the class 'Prelude.Num'.
 
@@ -308,7 +259,7 @@ data NumF a = Num
 
 instance (Num a, Show a) => Format (NumF a) where
   type F (NumF a) = Arr a
-  showsf' Num = Arr shows
+  showsf' Num = shows
 
 --------------------------------------------------------------------------------
 
@@ -321,8 +272,8 @@ instance (Num a, Show a) => Format (NumF a) where
 data SpacesF = Spaces Int
 
 instance Format SpacesF where
-  type F SpacesF = Id
-  showsf' (Spaces n) = Id (showString (replicate n ' '))
+  type F SpacesF = Identity
+  showsf' (Spaces n) = Identity (showString (replicate n ' '))
 
 --------------------------------------------------------------------------------
 

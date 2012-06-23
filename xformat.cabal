@@ -30,7 +30,7 @@ description:
   appropriate class.
 
 category:               Text, Generics
-copyright:              (c) 2009 Sean Leather
+copyright:              (c) 2012 Sean Leather
 license:                BSD3
 license-file:           LICENSE
 author:                 Sean Leather
@@ -46,13 +46,15 @@ Library
   hs-source-dirs:       src
   exposed-modules:      Text.XFormat.Read
                         Text.XFormat.Show
-  build-depends:        base >= 3.0 && < 5.0
+  build-depends:        base >= 3.0 && < 5.0,
+                        functionalize-functors >= 0.1 && < 0.2
   ghc-options:          -Wall -O2 -fcontext-stack=40
 
 Test-Suite test
   type:                 exitcode-stdio-1.0
   hs-source-dirs:       test, src
   main-is:              Main.hs
-  build-depends:        base >= 3.0 && < 5.0
+  build-depends:        base >= 3.0 && < 5.0,
+                        functionalize-functors >= 0.1 && < 0.2
   ghc-options:          -Wall -O2 -fcontext-stack=40
 
