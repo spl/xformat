@@ -7,9 +7,6 @@ synopsis:
 homepage:               http://github.com/spl/xformat
 description:
 
-  /Warning:/ This version of the package is very experimental and the interface
-  may change in later versions. I am seeking comments to improve it.
-  .
   This package is composed of two functions for formatted conversion between
   strings and typed values. Each is defined as a type-indexed function using a
   type class with multiple parameters and functional dependencies along with
@@ -30,15 +27,15 @@ description:
   appropriate class.
 
 category:               Text, Generics
-copyright:              (c) 2009 Sean Leather
+copyright:              (c) 2009-2014 Sean Leather
 license:                BSD3
 license-file:           LICENSE
 author:                 Sean Leather
-maintainer:             leather@cs.uu.nl
+maintainer:             sean.leather@gmail.com
 stability:              experimental
 build-type:             Simple
 cabal-version:          >= 1.9.2
-tested-with:            GHC == 6.8.3, GHC == 6.10.1, GHC == 7.4.1
+tested-with:            GHC == 6.8.3, GHC == 6.10.1, GHC == 7.4.1, GHC == 7.6.3
 
 --------------------------------------------------------------------------------
 
@@ -54,7 +51,8 @@ Library
 
 Test-Suite test
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       test, src
+  hs-source-dirs:       test
   main-is:              Main.hs
-  build-depends:        base >= 3.0 && < 5.0
+  build-depends:        base >= 3.0 && < 5.0,
+                        xformat
 
