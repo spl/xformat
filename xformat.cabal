@@ -37,6 +37,10 @@ build-type:             Simple
 cabal-version:          >= 1.9.2
 tested-with:            GHC == 6.8.3, GHC == 6.10.1, GHC == 7.4.1, GHC == 7.6.3
 
+source-repository head
+  type:     git
+  location: git@github.com:spl/xformat.git
+
 --------------------------------------------------------------------------------
 
 Library
