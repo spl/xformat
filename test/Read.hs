@@ -34,6 +34,8 @@ testBasic = and
   , readsf 'a' "a" == [('a', "")]
   , readf "Hello" "Hello" == Just "Hello"
   , readf "Hello" "Goodbye" == Nothing
+  , readf (Int % "." % Int ) "123.456" == Just (123 % "." % 456)
+  , readf (Integer % "." % Integer ) "123.456" == Just (123 % "." % 456)
   ]
 
 testClasses :: Bool

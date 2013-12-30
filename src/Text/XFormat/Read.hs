@@ -76,6 +76,7 @@ module Text.XFormat.Read (
 
 import Control.Applicative ((<$>))
 import Text.ParserCombinators.ReadP
+import Text.Read.Lex (readDecP)
 import Data.Char (isSpace)
 
 --------------------------------------------------------------------------------
@@ -175,14 +176,14 @@ instance Format StringF String where
 data IntF = Int
 
 instance Format IntF Int where
-  readpf Int = readS_to_P reads
+  readpf Int = readDecP
 
 -- | Parse an 'Integer'.
 
 data IntegerF = Integer
 
 instance Format IntegerF Integer where
-  readpf Integer = readS_to_P reads
+  readpf Integer = readDecP
 
 -- | Parse a 'Float'.
 
