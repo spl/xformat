@@ -1,5 +1,5 @@
 name:                   xformat
-version:                0.1.2
+version:                0.1.2.1
 synopsis:
 
   Extensible, type-safe formatting with scanf- and printf-like functions
