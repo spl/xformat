@@ -82,6 +82,7 @@ module Text.XFormat.Show (
 
 --------------------------------------------------------------------------------
 
+import Prelude hiding ((<>))
 
 -- | This class provides the signature for an extensible, type-indexed function
 -- that uses a format descriptor to print a variable number of well-typed
